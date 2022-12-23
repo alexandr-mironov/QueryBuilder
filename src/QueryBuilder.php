@@ -1,0 +1,197 @@
+<?php
+
+declare(strict_types=1);
+
+namespace QueryBuilder;
+
+use Entity\Column as ColumnEntity;
+use Entity\ColumnCollection;
+use Entity\Table;
+use QueryBuilder\Conditions\ConditionInterface;
+use QueryBuilder\Definitions\Column;
+use QueryBuilder\Exceptions\{Exception};
+use QueryBuilder\Statements\{AlterTable,
+    CreateTable,
+    Delete,
+    DropTable,
+    Insert,
+    Select,
+    SelectWrapper,
+    StatementInterface,
+    With
+};
+use PDO;
+
+/**
+ * Class QueryBuilder
+ *
+ * @package QueryBuilder
+ */
+class QueryBuilder implements BuilderInterface
+{
+    public const MYSQL = 'mysql';
+
+    public const SQL1999 = 'SQL:1999';
+
+    public const POSTGRESQL = 'postgresql';
+
+    /**
+     * QueryBuilder constructor.
+     *
+     * @param bool $beautify
+     *
+     */
+    public function __construct(
+        public bool $beautify = false
+    ) {
+
+    }
+
+    /**
+     * @param Table $table
+     * @param ConditionInterface ...$conditions
+     *
+     * @return Select
+     */
+    public function select(Table $table, ConditionInterface ...$conditions): Select
+    {
+        return new Select($table, ...$conditions);
+    }
+
+    /**
+     * @param Table $table
+     * @param string[] $keys
+     * @param string[] $updatable
+     *
+     * @return Insert
+     */
+    public function insert(Table $table, array $keys, array $updatable = []): Insert
+    {
+        return new Insert($table->getName(), $keys, $updatable);
+    }
+
+    /**
+     * @param Table $table
+     * @param ColumnCollection $columns
+     * @param array<mixed> $options
+     *
+     * @return CreateTable
+     * @throws \Exception
+     */
+    public function createTable(Table $table, ColumnCollection $columns, array $options = []): CreateTable
+    {
+        $createTableStatement = new CreateTable($table, $options);
+        /** @var ColumnEntity $column */
+        foreach ($columns as $column) {
+            $columnDefinition = new Column(
+                $column->getKey(),
+                $column->getType(),
+                $column->getOptions()
+            );
+
+            $createTableStatement->addColumn($columnDefinition);
+        }
+
+        return $createTableStatement;
+    }
+
+    /**
+     * @param Table $table
+     * @param ConditionInterface ...$conditions
+     *
+     * @return Delete
+     */
+    public function delete(Table $table, ConditionInterface ...$conditions): Delete
+    {
+        return new Delete($table, ...$conditions);
+    }
+
+    /**
+     * @param Select[] $selects
+     *
+     * @return With
+     * @throws Exception
+     */
+    public function with(array $selects): With
+    {
+        $wrappers = [];
+        foreach ($selects as $key => $select) {
+            if (!$select instanceof Select) {
+                throw new Exception('Invalid select statement provided');
+            }
+            $alias = null;
+            if (is_string($key)) {
+                $alias = $key;
+            }
+            $wrappers[] = new SelectWrapper($select, $alias);
+        }
+
+        return new With(...$wrappers);
+    }
+
+    /**
+     * @param Table $table
+     * @param array<mixed> $options
+     *
+     * @return DropTable
+     */
+    public function dropTable(Table $table, array $options = []): DropTable
+    {
+        $dropTableStatement = new DropTable($table);
+
+        if (
+            array_key_exists('cascade', $options)
+            && $options['cascade']
+        ) {
+            $dropTableStatement->cascade = true;
+        }
+
+        if (
+            array_key_exists('temporary', $options)
+            && $options['temporary']
+        ) {
+            $dropTableStatement->temporary = true;
+        }
+
+        if (
+            array_key_exists('ifExists', $options)
+            && $options['ifExists']
+        ) {
+            $dropTableStatement->ifExists = true;
+        }
+
+        if (
+            array_key_exists('restrict', $options)
+            && $options['restrict']
+        ) {
+            $dropTableStatement->restrict = true;
+        }
+
+        return $dropTableStatement;
+    }
+
+    /**
+     * @param Table $table
+     *
+     * @return AlterTable
+     */
+    public function alterTable(Table $table): AlterTable
+    {
+        return new AlterTable($table);
+    }
+
+    /**
+     * @param mixed $type
+     *
+     * @return int
+     */
+    protected function getType(mixed $type): int
+    {
+        return match ($type) {
+            'integer', 'float' => PDO::PARAM_INT,
+            'boolean' => PDO::PARAM_BOOL,
+            'string', 'datetime' => PDO::PARAM_STR,
+            default => PDO::PARAM_STR,
+        };
+    }
+}

@@ -1,0 +1,216 @@
+<?php
+
+declare(strict_types=1);
+
+namespace QueryBuilder\Statements;
+
+use QueryBuilder\Conditions\ConditionInterface;
+use QueryBuilder\Conditions\Equal;
+use QueryBuilder\Conditions\GreaterThen;
+use QueryBuilder\Conditions\GreaterThenOrEqual;
+use QueryBuilder\Conditions\In;
+use QueryBuilder\Conditions\LessThen;
+use QueryBuilder\Conditions\LessThenOrEqual;
+use QueryBuilder\Conditions\NotEqual;
+use QueryBuilder\Conditions\NotIn;
+use QueryBuilder\Exceptions\Exception;
+use QueryBuilder\LogicalOperators;
+
+trait WhereTrait
+{
+    /** @var array<array{operator: string, condition: string}> */
+    public array $wheres = [];
+
+    /** @var int|null $limit */
+    public ?int $limit = null;
+
+    /** @var int|null $offset */
+    public ?int $offset = null;
+
+    /** @var array<mixed>  */
+    public array $order = [];
+
+    /**
+     * @return string
+     */
+    protected function buildWhereStatement(): string
+    {
+        $query = '';
+        foreach ($this->wheres as $i => $where) {
+            $query .= (!$i ? '' : ' ' . $where['operator'] . ' ') . $where['condition'];
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param int $limit
+     * @param int|null $offset
+     *
+     * @return $this
+     */
+    public function limit(int $limit, ?int $offset = null): static
+    {
+        $this->limit = $limit;
+        if ($offset) {
+            $this->offset = $offset;
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string|array<mixed> $order
+     *
+     * @return $this
+     */
+    public function order(string|array $order): static
+    {
+        switch (true) {
+            case is_string($order):
+                $this->order[] = [
+                    $order => 'DESC',
+                ];
+                break;
+            default:
+                $this->order = $order;
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param string $key
+     * @param mixed $value
+     * @param string $operator
+     *
+     * @return $this
+     * @throws Exception
+     */
+    public function by(string $key, mixed $value, string $operator = LogicalOperators:: AND): static
+    {
+        $args = [$key, $value];
+        $this->addWhereCondition(
+            (is_array($value)) ? new In($args) : new Equal($args),
+            $operator
+        );
+
+        return $this;
+    }
+
+    /**
+     * @param ConditionInterface $condition
+     * @param string $operator
+     *
+     * @return $this
+     */
+    public function addWhereCondition(ConditionInterface $condition, string $operator = LogicalOperators:: AND): static
+    {
+        $this->wheres[] = [
+            'operator' => $operator,
+            'condition' => (string)$condition,
+        ];
+
+        return $this;
+    }
+
+    /**
+     * @param string $key
+     * @param mixed $value
+     * @param string $operator
+     *
+     * @return $this
+     * @throws Exception
+     */
+    public function byNot(string $key, mixed $value, string $operator = LogicalOperators:: AND): static
+    {
+        $args = [$key, $value];
+        $this->addWhereCondition(
+            (is_array($value)) ? new NotIn($args) : new NotEqual($args),
+            $operator
+        );
+
+        return $this;
+    }
+
+    /**
+     * @param string $key
+     * @param mixed $value
+     * @param string $operator
+     *
+     * @return $this
+     * @throws Exception
+     */
+    public function whereGreaterThen(string $key, mixed $value, string $operator = LogicalOperators:: AND): static
+    {
+        return $this->where(GreaterThen::class, $key, $value, $operator);
+    }
+
+    /**
+     * @param string $condition
+     * @param string $key
+     * @param mixed $value
+     * @param string $operator
+     *
+     * @return $this
+     * @throws Exception
+     */
+    public function where(string $condition, string $key, mixed $value, string $operator = LogicalOperators:: AND): static
+    {
+        if (!class_exists($condition)) {
+            throw new Exception('invalid condition provided');
+        }
+
+        $conditionInstance = new $condition([$key, $value]);
+
+        if (false === ($conditionInstance instanceof ConditionInterface)) {
+            throw new Exception('invalid condition provided');
+        }
+
+        $this->addWhereCondition(
+            $conditionInstance,
+            $operator
+        );
+
+        return $this;
+    }
+
+    /**
+     * @param string $key
+     * @param mixed $value
+     * @param string $operator
+     *
+     * @return $this
+     * @throws Exception
+     */
+    public function whereGreaterThenOrEqual(string $key, mixed $value, string $operator = LogicalOperators:: AND): static
+    {
+        return $this->where(GreaterThenOrEqual::class, $key, $value, $operator);
+    }
+
+    /**
+     * @param string $key
+     * @param mixed $value
+     * @param string $operator
+     *
+     * @return $this
+     * @throws Exception
+     */
+    public function whereLessThen(string $key, mixed $value, string $operator = LogicalOperators:: AND): static
+    {
+        return $this->where(LessThen::class, $key, $value, $operator);
+    }
+
+    /**
+     * @param string $key
+     * @param mixed $value
+     * @param string $operator
+     *
+     * @return $this
+     * @throws Exception
+     */
+    public function whereLessThenOrEqual(string $key, mixed $value, string $operator = LogicalOperators:: AND): static
+    {
+        return $this->where(LessThenOrEqual::class, $key, $value, $operator);
+    }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "alexandr-mironov/querybuilder",
+  "description": "Yet another PHP query builder",
+  "keywords": ["QueryBuilder", "ORM", "SQL"],
+  "homepage": "https://github.com/alexandr-mironov/QUeryBuilder",
+  "type": "library",
+  "license": "LGPL-3.0-or-later",
+  "authors": [
+    {
+      "name": "Alexandr Mironov",
+      "email": "alex@hyptrex.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "QuerBuilder\\": "src/",
+      "Test\\": "tests/"
+    }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9",
+    "phpstan/phpstan": "^1.9"
+  },
+  "require": {
+    "php": "^8"
+  }
+}
